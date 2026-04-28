@@ -142,10 +142,8 @@ class CarouselHTMLRenderer:
         use_images: bool = True,
     ):
         self.accent = accent_color
-        palette = [accent_color]
-        if accent_color_2: palette.append(accent_color_2)
-        if accent_color_3: palette.append(accent_color_3)
-        self.palette    = palette
+        self.bg_dark  = accent_color_2 if accent_color_2 else "#0A0A0A"
+        self.bg_light = accent_color_3 if accent_color_3 else "#F4EFE8"
         self.use_images = use_images
         self.username = username.lstrip("@")
         self.creator_name = creator_name
@@ -234,7 +232,7 @@ class CarouselHTMLRenderer:
         return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
 {_BASE_CSS}
 .slide{{width:1080px;height:1350px;position:relative;display:flex;flex-direction:column;
-  justify-content:flex-end;background:#0A0A0A;}}
+  justify-content:flex-end;background:{self.bg_dark};}}
 .bg{{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;}}
 .ov{{position:absolute;inset:0;background:linear-gradient(to top,
   rgba(0,0,0,.95) 0%,rgba(0,0,0,.55) 50%,rgba(0,0,0,.12) 100%);}}
@@ -262,7 +260,7 @@ class CarouselHTMLRenderer:
   <div class="sub"><span class="arrow">→</span>{body_e}</div>
 </div></div></body></html>"""
 
-    def _content_html(self, slide: dict, number: int, total: int, dark: bool, palette_acc: str = "") -> str:
+    def _content_html(self, slide: dict, number: int, total: int, dark: bool) -> str:
         title        = slide.get("title", "")
         title_hl     = slide.get("title_highlight", "")
         body         = slide.get("body", "")
@@ -272,21 +270,29 @@ class CarouselHTMLRenderer:
         title_html = _apply_highlight(title.upper(), title_hl.upper())
         body_html  = _apply_bold(body, bold_kws)
         fs         = _title_font_size(title)
-        base       = palette_acc or self.accent
-        acc        = _accent_for_dark(base) if dark else _accent_for_light(base)
+        acc        = _accent_for_dark(self.accent) if dark else _accent_for_light(self.accent)
         user       = html_lib.escape(self.username)
         label_e    = html_lib.escape(section_label.upper())
 
         if dark:
-            bg        = "#0A0A0A"
+            bg        = self.bg_dark
             text_main = "#FFFFFF"
             text_body = "rgba(255,255,255,.65)"
             text_muted= "rgba(255,255,255,.25)"
         else:
-            bg        = "#F4EFE8"
-            text_main = "#0D0D0D"
-            text_body = "#4A4A4A"
-            text_muted= "rgba(13,13,13,.25)"
+            bg        = self.bg_light
+            # detecta luminosidade do fundo claro para ajustar texto
+            h = self.bg_light.lstrip("#")
+            r2, g2, b2 = int(h[0:2],16)/255, int(h[2:4],16)/255, int(h[4:6],16)/255
+            lum = 0.299*r2 + 0.587*g2 + 0.114*b2
+            if lum < 0.5:
+                text_main = "#FFFFFF"
+                text_body = "rgba(255,255,255,.65)"
+                text_muted= "rgba(255,255,255,.25)"
+            else:
+                text_main = "#0D0D0D"
+                text_body = "#4A4A4A"
+                text_muted= "rgba(13,13,13,.25)"
 
         return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
 {_BASE_CSS}
@@ -386,9 +392,8 @@ class CarouselHTMLRenderer:
             elif i == total - 1:
                 html_str = self._cta_html(slide)
             else:
-                dark        = (i % 2 == 1)
-                palette_acc = self.palette[(i - 1) % len(self.palette)]
-                html_str    = self._content_html(slide, i + 1, total, dark, palette_acc)
+                dark     = (i % 2 == 1)
+                html_str = self._content_html(slide, i + 1, total, dark)
 
             images.append(self._render(html_str))
 

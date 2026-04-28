@@ -29,6 +29,121 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'Space Grotesk', sans-serif;
+}
+
+/* Hero */
+.hero-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #7C3AED22, #EC489922);
+    border: 1px solid #7C3AED44;
+    color: #a78bfa;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    padding: 5px 14px;
+    border-radius: 100px;
+    margin-bottom: 16px;
+}
+.hero-title {
+    font-size: 2.8rem;
+    font-weight: 800;
+    line-height: 1.1;
+    background: linear-gradient(135deg, #fff 30%, #a78bfa 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin: 0 0 12px 0;
+}
+.hero-sub {
+    font-size: 1.05rem;
+    color: rgba(255,255,255,.45);
+    margin-bottom: 32px;
+    line-height: 1.6;
+}
+
+/* Input label */
+.input-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255,255,255,.6);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+}
+
+/* Section divider */
+.section-card {
+    background: rgba(255,255,255,.03);
+    border: 1px solid rgba(255,255,255,.07);
+    border-radius: 16px;
+    padding: 24px;
+    margin: 16px 0;
+}
+
+/* Primary button */
+div[data-testid="stButton"] button[kind="primary"] {
+    background: linear-gradient(135deg, #7C3AED, #EC4899) !important;
+    border: none !important;
+    border-radius: 14px !important;
+    font-family: 'Space Grotesk', sans-serif !important;
+    font-weight: 700 !important;
+    font-size: 1rem !important;
+    letter-spacing: .03em !important;
+    padding: 0.65rem 1.5rem !important;
+    box-shadow: 0 4px 24px rgba(124,58,237,.3) !important;
+    transition: transform .15s, box-shadow .15s !important;
+}
+div[data-testid="stButton"] button[kind="primary"]:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 32px rgba(124,58,237,.45) !important;
+}
+
+/* Sidebar */
+[data-testid="stSidebar"] {
+    background: #0f0f13 !important;
+    border-right: 1px solid rgba(255,255,255,.07) !important;
+}
+[data-testid="stSidebar"] .stCaption {
+    color: rgba(255,255,255,.35) !important;
+    font-size: 11px !important;
+    letter-spacing: .12em !important;
+    text-transform: uppercase !important;
+    font-weight: 700 !important;
+}
+
+/* Expander */
+[data-testid="stExpander"] {
+    border: 1px solid rgba(255,255,255,.08) !important;
+    border-radius: 12px !important;
+    background: rgba(255,255,255,.02) !important;
+}
+
+/* Toggle */
+[data-testid="stToggle"] label {
+    font-weight: 600 !important;
+}
+
+/* Progress bar */
+[data-testid="stProgress"] > div > div {
+    background: linear-gradient(90deg, #7C3AED, #EC4899) !important;
+}
+
+/* Download button */
+div[data-testid="stDownloadButton"] button {
+    border-radius: 12px !important;
+    font-family: 'Space Grotesk', sans-serif !important;
+    font-weight: 600 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 DATA_DIR = settings.DATA_DIR
 USER_ID = "default"  # fase MVP — single user; substituir por auth depois
 
@@ -99,24 +214,27 @@ def _brand_default(key: str, secret_val: str) -> str:
 with st.sidebar:
     st.title("Marca Pessoal")
 
-    st.caption("Paleta de cores")
+    st.caption("Paleta de cores dos slides")
     col_a, col_b, col_c = st.columns(3)
     with col_a:
         accent = st.color_picker(
-            "Cor 1",
+            "Destaque",
             value=_brand_default("accent_color", settings.DEFAULT_ACCENT_COLOR),
+            help="Cor dos highlights, labels e separadores",
             key="accent",
         )
     with col_b:
         accent2 = st.color_picker(
-            "Cor 2",
-            value=_brand_default("accent_color_2", "#E53935"),
+            "Fundo escuro",
+            value=_brand_default("accent_color_2", "#0A0A0A"),
+            help="Fundo dos slides escuros e cover",
             key="accent2",
         )
     with col_c:
         accent3 = st.color_picker(
-            "Cor 3",
-            value=_brand_default("accent_color_3", "#F9A825"),
+            "Fundo claro",
+            value=_brand_default("accent_color_3", "#F4EFE8"),
+            help="Fundo dos slides claros",
             key="accent3",
         )
     creator_name = st.text_input(
@@ -180,8 +298,13 @@ with st.sidebar:
 # MAIN — Gerador
 # ─────────────────────────────────────────────────────────────────────────────
 
-st.title("Creator Studio AI")
-st.caption("Gere carrosseis profissionais com IA em segundos.")
+st.markdown("""
+<div style="padding: 8px 0 24px 0;">
+  <div class="hero-badge">✦ Powered by Claude AI</div>
+  <div class="hero-title">Creator Studio AI</div>
+  <div class="hero-sub">Gere carrosseis editoriais prontos para o Instagram<br>em segundos — sem Canva, sem template.</div>
+</div>
+""", unsafe_allow_html=True)
 
 st.divider()
 

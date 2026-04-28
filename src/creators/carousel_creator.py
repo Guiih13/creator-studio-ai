@@ -307,10 +307,8 @@ class CarouselCreator:
     ):
         self.accent        = accent_color
         # palette: cicla pelas cores nos slides de conteúdo
-        palette = [accent_color]
-        if accent_color_2: palette.append(accent_color_2)
-        if accent_color_3: palette.append(accent_color_3)
-        self.palette       = palette
+        self.bg_dark  = accent_color_2 if accent_color_2 else "#0A0A0A"
+        self.bg_light = accent_color_3 if accent_color_3 else "#F4EFE8"
         self.username      = username.lstrip("@")
         self.creator_name  = creator_name
         self.brand_label   = brand_label
@@ -345,7 +343,7 @@ class CarouselCreator:
         body     = slide.get("body", "")
         visual   = slide.get("visual_suggestion", "")
 
-        img  = Image.new("RGB", (W, H), _DARK)
+        img  = Image.new("RGB", (W, H), self.bg_dark)
         draw = ImageDraw.Draw(img)
 
         # foto de fundo com gradiente
@@ -430,25 +428,32 @@ class CarouselCreator:
 
     # ── Content ───────────────────────────────────────────────────────────────
 
-    def _slide_content(self, slide: dict, number: int, total: int, dark: bool, palette_idx: int = 0) -> Image.Image:
+    def _slide_content(self, slide: dict, number: int, total: int, dark: bool) -> Image.Image:
         title        = slide.get("title", "")
         title_hl     = slide.get("title_highlight", "")
         body         = slide.get("body", "")
         section_label= slide.get("section_label", "")
 
-        base_color = self.palette[palette_idx % len(self.palette)]
-        acc = _accent_for_dark(base_color) if dark else _accent_for_light(base_color)
+        acc = _accent_for_dark(self.accent) if dark else _accent_for_light(self.accent)
 
         if dark:
-            bg_color   = _DARK
+            bg_color   = self.bg_dark
             text_main  = (255, 255, 255)
             text_body  = (255, 255, 255, 166)
             text_muted = (255, 255, 255, 64)
         else:
-            bg_color   = _LIGHT
-            text_main  = (13, 13, 13)
-            text_body  = (74, 74, 74)
-            text_muted = (13, 13, 13, 64)
+            bg_color   = self.bg_light
+            # detecta se fundo claro é escuro para ajustar cor do texto
+            r, g, b = _hex(self.bg_light)
+            lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+            if lum < 0.5:
+                text_main  = (255, 255, 255)
+                text_body  = (255, 255, 255, 166)
+                text_muted = (255, 255, 255, 64)
+            else:
+                text_main  = (13, 13, 13)
+                text_body  = (74, 74, 74)
+                text_muted = (13, 13, 13, 64)
 
         img  = Image.new("RGB", (W, H), bg_color)
         draw = ImageDraw.Draw(img)
@@ -605,7 +610,7 @@ class CarouselCreator:
             elif i == total - 1:
                 img = self._slide_cta(slide)
             else:
-                img = self._slide_content(slide, i + 1, total, dark=(i % 2 == 1), palette_idx=i - 1)
+                img = self._slide_content(slide, i + 1, total, dark=(i % 2 == 1))
 
             images.append(img)
 
