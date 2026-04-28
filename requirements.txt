@@ -1,0 +1,22 @@
+# IA
+anthropic>=0.40.0
+
+# Dashboard
+streamlit>=1.40.0
+plotly>=5.24.0
+pandas>=2.2.0
+
+# Criação de carrossel
+playwright>=1.40.0
+Pillow>=11.0.0
+
+# Utilitários
+python-dotenv>=1.0.0
+loguru>=0.7.0
+requests>=2.32.0
+numpy>=1.26.0
+
+# Pexels (fotos de fundo)
+# Sem dependência extra — usa requests
+
+# Após instalar: playwright install chromium
