@@ -70,35 +70,39 @@ def _get_creator() -> object:
 brand = load_brand(DATA_DIR, USER_ID)
 saved_photo_bytes = photo_bytes(DATA_DIR, USER_ID)
 
+# Fallback para defaults de secrets quando não há dados salvos no disco
+def _brand_default(key: str, secret_val: str) -> str:
+    return brand.get(key) or secret_val
+
 with st.sidebar:
     st.title("Marca Pessoal")
 
     accent = st.color_picker(
         "Cor de destaque",
-        value=brand.get("accent_color", "#1565C0"),
+        value=_brand_default("accent_color", settings.DEFAULT_ACCENT_COLOR),
         key="accent",
     )
     creator_name = st.text_input(
         "Seu nome",
-        value=brand.get("creator_name", ""),
+        value=_brand_default("creator_name", settings.DEFAULT_CREATOR_NAME),
         placeholder="Ex: Guilherme Martins",
         key="creator_name",
     )
     username = st.text_input(
         "@username",
-        value=brand.get("username", ""),
+        value=_brand_default("username", settings.DEFAULT_USERNAME),
         placeholder="Ex: guicode_",
         key="username",
     )
     niche = st.text_input(
         "Sua área / nicho",
-        value=brand.get("niche", ""),
+        value=_brand_default("niche", settings.DEFAULT_NICHE),
         placeholder="Ex: médico, designer, dev, coach...",
         key="niche",
     )
     brand_label = st.text_input(
         "Label dos slides",
-        value=brand.get("brand_label", ""),
+        value=_brand_default("brand_label", settings.DEFAULT_BRAND_LABEL),
         placeholder="Ex: @guicode_, SAUDE EM FOCO...",
         help="Aparece no canto superior de cada slide. Deixe vazio para não exibir.",
         key="brand_label",
@@ -187,6 +191,11 @@ if gerar and topic:
         st.error("Não foi possível gerar o roteiro. Tente novamente.")
         st.stop()
 
+    st.session_state["carousel_data"] = data
+
+if "carousel_data" in st.session_state:
+    data = st.session_state["carousel_data"]
+
     st.success(f"Roteiro gerado — {len(data.get('slides', []))} slides")
 
     # Preview dos slides do roteiro
@@ -209,7 +218,22 @@ if gerar and topic:
         def _prog(current, total, label):
             bar.progress(current / max(total, 1), text=f"Slide {current}/{total}: {label[:50]}")
 
-        images = creator.generate(data, progress_callback=_prog)
+        try:
+            images = creator.generate(data, progress_callback=_prog)
+        except Exception:
+            # Playwright falhou (ex: Chromium não instalado) — tenta com renderer PIL
+            from src.creators.carousel_creator import CarouselCreator
+            brand_local = load_brand(DATA_DIR, USER_ID)
+            photo_local = load_photo(DATA_DIR, USER_ID)
+            creator = CarouselCreator(
+                accent_color=st.session_state.get("accent", brand_local.get("accent_color", "#1565C0")),
+                username=st.session_state.get("username", brand_local.get("username", "")),
+                creator_name=st.session_state.get("creator_name", brand_local.get("creator_name", "")),
+                profile_photo=photo_local,
+                pexels_api_key=settings.PEXELS_API_KEY,
+                cache_dir=str(Path(DATA_DIR) / "pexels_cache"),
+            )
+            images = creator.generate(data, progress_callback=_prog)
         bar.progress(1.0, text="Concluído!")
 
         st.success(f"{len(images)} slides gerados.")
@@ -232,7 +256,7 @@ if gerar and topic:
     if data.get("caption"):
         st.divider()
         st.subheader("Legenda")
-        st.text_area("", value=data["caption"], height=120, label_visibility="collapsed")
+        st.text_area("Legenda", value=data["caption"], height=120, label_visibility="collapsed")
 
     if data.get("hashtags"):
         st.caption(" ".join(data["hashtags"]))

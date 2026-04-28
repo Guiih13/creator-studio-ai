@@ -20,13 +20,9 @@ from pathlib import Path
 from PIL import Image
 
 try:
-    from playwright.sync_api import sync_playwright as _sp
-    with _sp() as _p:
-        _b = _p.chromium.launch(headless=True)
-        _b.close()
     from playwright.sync_api import sync_playwright
     PLAYWRIGHT_OK = True
-except Exception:
+except ImportError:
     PLAYWRIGHT_OK = False
 
 from src.creators.carousel_creator import _pexels_fetch
