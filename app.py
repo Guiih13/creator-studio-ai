@@ -7,6 +7,8 @@ Gerador de carrosseis profissionais com IA.
 from __future__ import annotations
 
 import io
+import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -29,6 +31,22 @@ st.set_page_config(
 
 DATA_DIR = settings.DATA_DIR
 USER_ID = "default"  # fase MVP — single user; substituir por auth depois
+
+
+@st.cache_resource(show_spinner=False)
+def _ensure_playwright() -> bool:
+    """Instala o binário do Chromium uma vez por instância do servidor."""
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "playwright", "install", "chromium", "--with-deps"],
+            capture_output=True, text=True, timeout=300,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+_ensure_playwright()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
