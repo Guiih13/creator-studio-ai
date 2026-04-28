@@ -139,7 +139,7 @@ class CarouselHTMLRenderer:
         brand_label: str = "",
     ):
         self.accent = accent_color
-        self.username = username
+        self.username = username.lstrip("@")
         self.creator_name = creator_name
         self.profile_photo = profile_photo
         self.brand_label = brand_label

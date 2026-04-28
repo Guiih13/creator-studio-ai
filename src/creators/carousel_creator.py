@@ -210,15 +210,28 @@ def _pexels_fetch(query: str, api_key: str, cache_dir: str) -> Image.Image | Non
         resp = requests.get(
             "https://api.pexels.com/v1/search",
             headers={"Authorization": api_key},
-            params={"query": query, "per_page": 3, "orientation": "portrait"},
+            params={"query": query, "per_page": 10, "orientation": "portrait", "size": "large"},
             timeout=10,
         )
         resp.raise_for_status()
         photos = resp.json().get("photos", [])
         if not photos:
+            # tenta sem filtro de orientação
+            resp2 = requests.get(
+                "https://api.pexels.com/v1/search",
+                headers={"Authorization": api_key},
+                params={"query": query, "per_page": 5, "size": "large"},
+                timeout=10,
+            )
+            resp2.raise_for_status()
+            photos = resp2.json().get("photos", [])
+        if not photos:
             return None
-        img_url = photos[0]["src"]["large2x"]
-        img_resp = requests.get(img_url, timeout=20)
+
+        # pega a foto com maior resolução (width * height)
+        best = max(photos, key=lambda p: p.get("width", 0) * p.get("height", 0))
+        img_url = best["src"].get("original") or best["src"]["large2x"]
+        img_resp = requests.get(img_url, timeout=30)
         img_resp.raise_for_status()
         Path(cache_dir).mkdir(parents=True, exist_ok=True)
         cache_path.write_bytes(img_resp.content)
@@ -290,7 +303,7 @@ class CarouselCreator:
         brand_label: str = "",
     ):
         self.accent        = accent_color
-        self.username      = username
+        self.username      = username.lstrip("@")
         self.creator_name  = creator_name
         self.brand_label   = brand_label
         self.profile_photo = profile_photo
