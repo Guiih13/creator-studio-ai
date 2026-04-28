@@ -398,17 +398,22 @@ if "carousel_data" in st.session_state:
         try:
             images = creator.generate(data, progress_callback=_prog)
         except Exception:
-            # Playwright falhou (ex: Chromium não instalado) — tenta com renderer PIL
+            # Playwright falhou — tenta com renderer PIL preservando todas as cores
             from src.creators.carousel_creator import CarouselCreator
             brand_local = load_brand(DATA_DIR, USER_ID)
             photo_local = load_photo(DATA_DIR, USER_ID)
             creator = CarouselCreator(
                 accent_color=st.session_state.get("accent", brand_local.get("accent_color", "#1565C0")),
+                accent_color_2=st.session_state.get("accent2", brand_local.get("accent_color_2", "")),
+                accent_color_3=st.session_state.get("accent3", brand_local.get("accent_color_3", "")),
                 username=st.session_state.get("username", brand_local.get("username", "")),
                 creator_name=st.session_state.get("creator_name", brand_local.get("creator_name", "")),
+                brand_label=st.session_state.get("brand_label", brand_local.get("brand_label", "")),
                 profile_photo=photo_local,
                 pexels_api_key=settings.PEXELS_API_KEY,
                 cache_dir=str(Path(DATA_DIR) / "pexels_cache"),
+                use_images=st.session_state.get("use_images", True),
+                fonts_dir=str(Path(DATA_DIR) / "fonts"),
             )
             images = creator.generate(data, progress_callback=_prog)
         bar.progress(1.0, text="Concluído!")

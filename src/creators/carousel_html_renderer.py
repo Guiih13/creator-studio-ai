@@ -196,7 +196,11 @@ class CarouselHTMLRenderer:
             device_scale_factor=1,
         )
         try:
-            page.set_content(html_str, wait_until="networkidle")
+            try:
+                page.set_content(html_str, wait_until="networkidle", timeout=10000)
+            except Exception:
+                # fonts may not have loaded — still take the screenshot
+                pass
             screenshot = page.screenshot(type="png")
         finally:
             page.close()
