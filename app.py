@@ -70,6 +70,8 @@ def _get_creator() -> object:
         cache_dir=cache_dir,
     )
 
+    fonts_dir = str(Path(DATA_DIR) / "fonts")
+
     try:
         from src.creators.carousel_html_renderer import CarouselHTMLRenderer, PLAYWRIGHT_OK
         if PLAYWRIGHT_OK:
@@ -77,8 +79,7 @@ def _get_creator() -> object:
         raise ImportError
     except Exception:
         from src.creators.carousel_creator import CarouselCreator
-        kwargs.pop("brand_label", None)
-        return CarouselCreator(**kwargs)
+        return CarouselCreator(**kwargs, fonts_dir=fonts_dir)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
