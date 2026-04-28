@@ -131,14 +131,22 @@ class CarouselHTMLRenderer:
     def __init__(
         self,
         accent_color: str = "#1565C0",
+        accent_color_2: str = "",
+        accent_color_3: str = "",
         username: str = "",
         creator_name: str = "",
         profile_photo: Image.Image | None = None,
         pexels_api_key: str = "",
         cache_dir: str = "",
         brand_label: str = "",
+        use_images: bool = True,
     ):
         self.accent = accent_color
+        palette = [accent_color]
+        if accent_color_2: palette.append(accent_color_2)
+        if accent_color_3: palette.append(accent_color_3)
+        self.palette    = palette
+        self.use_images = use_images
         self.username = username.lstrip("@")
         self.creator_name = creator_name
         self.profile_photo = profile_photo
@@ -199,7 +207,7 @@ class CarouselHTMLRenderer:
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     def _fetch_bg_b64(self, query: str) -> str | None:
-        if not query or not self._pexels_key or not self._cache_dir:
+        if not self.use_images or not query or not self._pexels_key or not self._cache_dir:
             return None
         img = _pexels_fetch(query, self._pexels_key, self._cache_dir)
         return _pil_to_b64(img) if img else None
@@ -254,7 +262,7 @@ class CarouselHTMLRenderer:
   <div class="sub"><span class="arrow">→</span>{body_e}</div>
 </div></div></body></html>"""
 
-    def _content_html(self, slide: dict, number: int, total: int, dark: bool) -> str:
+    def _content_html(self, slide: dict, number: int, total: int, dark: bool, palette_acc: str = "") -> str:
         title        = slide.get("title", "")
         title_hl     = slide.get("title_highlight", "")
         body         = slide.get("body", "")
@@ -264,7 +272,8 @@ class CarouselHTMLRenderer:
         title_html = _apply_highlight(title.upper(), title_hl.upper())
         body_html  = _apply_bold(body, bold_kws)
         fs         = _title_font_size(title)
-        acc        = _accent_for_dark(self.accent) if dark else _accent_for_light(self.accent)
+        base       = palette_acc or self.accent
+        acc        = _accent_for_dark(base) if dark else _accent_for_light(base)
         user       = html_lib.escape(self.username)
         label_e    = html_lib.escape(section_label.upper())
 
@@ -377,8 +386,9 @@ class CarouselHTMLRenderer:
             elif i == total - 1:
                 html_str = self._cta_html(slide)
             else:
-                dark     = (i % 2 == 1)
-                html_str = self._content_html(slide, i + 1, total, dark)
+                dark        = (i % 2 == 1)
+                palette_acc = self.palette[(i - 1) % len(self.palette)]
+                html_str    = self._content_html(slide, i + 1, total, dark, palette_acc)
 
             images.append(self._render(html_str))
 

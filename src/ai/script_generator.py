@@ -158,8 +158,14 @@ def build_user_prompt(
     n_slides: int = 8,
     objective: str = "Educar e gerar engajamento",
     tone: str = "Direto e informativo",
+    required_topics: list[str] | None = None,
 ) -> str:
     niche_section = f"Nicho/área do criador: {niche}\n" if niche else ""
+    required_section = ""
+    if required_topics:
+        items = "\n".join(f"- {t}" for t in required_topics if t.strip())
+        if items:
+            required_section = f"\n## TÓPICOS OBRIGATÓRIOS\n\nOs slides devem cobrir obrigatoriamente os seguintes pontos (distribua-os naturalmente ao longo do carrossel):\n{items}\n"
     return f"""{niche_section}## CONFIGURAÇÃO DO CARROSSEL
 
 Data atual: {date.today().strftime("%d/%m/%Y")}
@@ -167,7 +173,7 @@ Tema: {topic}
 Objetivo: {objective}
 Tom: {tone}
 Número de slides: {n_slides}
-
+{required_section}
 Crie um carrossel com exatamente {n_slides} slides sobre este tema."""
 
 
@@ -179,6 +185,7 @@ def generate_carousel_script(
     n_slides: int = 8,
     objective: str = "Educar e gerar engajamento",
     tone: str = "Direto e informativo",
+    required_topics: list[str] | None = None,
 ) -> dict | None:
     """
     Gera roteiro de carrossel via Claude.
@@ -189,7 +196,7 @@ def generate_carousel_script(
     import anthropic
 
     client = anthropic.Anthropic(api_key=anthropic_api_key)
-    user_prompt = build_user_prompt(topic, niche, n_slides, objective, tone)
+    user_prompt = build_user_prompt(topic, niche, n_slides, objective, tone, required_topics)
 
     try:
         msg = client.messages.create(

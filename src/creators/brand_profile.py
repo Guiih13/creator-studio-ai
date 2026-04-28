@@ -18,6 +18,8 @@ BRAND_DEFAULTS = {
     "creator_name": "",
     "username": "",
     "accent_color": "#1565C0",
+    "accent_color_2": "#E53935",
+    "accent_color_3": "#F9A825",
     "brand_label": "",
     "niche": "",
 }
@@ -55,6 +57,8 @@ def save_brand(
     creator_name: str = "",
     username: str = "",
     accent_color: str = "#1565C0",
+    accent_color_2: str = "#E53935",
+    accent_color_3: str = "#F9A825",
     brand_label: str = "",
     niche: str = "",
 ) -> None:
@@ -64,6 +68,8 @@ def save_brand(
                 "creator_name": creator_name,
                 "username": username,
                 "accent_color": accent_color,
+                "accent_color_2": accent_color_2,
+                "accent_color_3": accent_color_3,
                 "brand_label": brand_label,
                 "niche": niche,
             },

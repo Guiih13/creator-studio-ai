@@ -62,12 +62,15 @@ def _get_creator() -> object:
 
     kwargs = dict(
         accent_color=st.session_state.get("accent", brand.get("accent_color", "#1565C0")),
+        accent_color_2=st.session_state.get("accent2", brand.get("accent_color_2", "")),
+        accent_color_3=st.session_state.get("accent3", brand.get("accent_color_3", "")),
         username=st.session_state.get("username", brand.get("username", "")),
         creator_name=st.session_state.get("creator_name", brand.get("creator_name", "")),
         brand_label=st.session_state.get("brand_label", brand.get("brand_label", "")),
         profile_photo=photo,
         pexels_api_key=settings.PEXELS_API_KEY,
         cache_dir=cache_dir,
+        use_images=st.session_state.get("use_images", True),
     )
 
     fonts_dir = str(Path(DATA_DIR) / "fonts")
@@ -96,11 +99,26 @@ def _brand_default(key: str, secret_val: str) -> str:
 with st.sidebar:
     st.title("Marca Pessoal")
 
-    accent = st.color_picker(
-        "Cor de destaque",
-        value=_brand_default("accent_color", settings.DEFAULT_ACCENT_COLOR),
-        key="accent",
-    )
+    st.caption("Paleta de cores")
+    col_a, col_b, col_c = st.columns(3)
+    with col_a:
+        accent = st.color_picker(
+            "Cor 1",
+            value=_brand_default("accent_color", settings.DEFAULT_ACCENT_COLOR),
+            key="accent",
+        )
+    with col_b:
+        accent2 = st.color_picker(
+            "Cor 2",
+            value=_brand_default("accent_color_2", "#E53935"),
+            key="accent2",
+        )
+    with col_c:
+        accent3 = st.color_picker(
+            "Cor 3",
+            value=_brand_default("accent_color_3", "#F9A825"),
+            key="accent3",
+        )
     creator_name = st.text_input(
         "Seu nome",
         value=_brand_default("creator_name", settings.DEFAULT_CREATOR_NAME),
@@ -145,6 +163,8 @@ with st.sidebar:
             creator_name=creator_name,
             username=username,
             accent_color=accent,
+            accent_color_2=accent2,
+            accent_color_3=accent3,
             brand_label=brand_label,
             niche=niche,
         )
@@ -183,6 +203,20 @@ with st.expander("Configurações avançadas"):
             "Tom",
             ["Direto e informativo", "Provocativo e instigante", "Didático e acessível", "Técnico e aprofundado"],
         )
+        use_images = st.toggle(
+            "Imagens automáticas nos slides",
+            value=True,
+            key="use_images",
+            help="Busca fotos do Pexels automaticamente. Desative para slides sem imagem de fundo.",
+        )
+
+    required_topics_raw = st.text_area(
+        "Tópicos obrigatórios",
+        placeholder="Digite um tópico por linha. A IA garantirá que todos apareçam no carrossel.\nEx:\nBenefícios do produto X\nComparação com concorrentes\nChamada para compra",
+        height=120,
+        help="Pontos que obrigatoriamente devem aparecer nos slides.",
+    )
+    required_topics = [t.strip() for t in required_topics_raw.splitlines() if t.strip()]
 
 gerar = st.button("Gerar Carrossel", type="primary", use_container_width=True, disabled=not topic)
 
@@ -201,6 +235,7 @@ if gerar and topic:
                 n_slides=n_slides,
                 objective=objective,
                 tone=tone,
+                required_topics=required_topics or None,
             )
         except Exception as e:
             st.error(f"Erro na geração: {e}")

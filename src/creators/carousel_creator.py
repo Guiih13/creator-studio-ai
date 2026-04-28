@@ -294,6 +294,8 @@ class CarouselCreator:
     def __init__(
         self,
         accent_color: str = "#1565C0",
+        accent_color_2: str = "",
+        accent_color_3: str = "",
         username: str = "",
         creator_name: str = "",
         profile_photo: Image.Image | None = None,
@@ -301,12 +303,19 @@ class CarouselCreator:
         cache_dir: str = "",
         fonts_dir: str = "",
         brand_label: str = "",
+        use_images: bool = True,
     ):
         self.accent        = accent_color
+        # palette: cicla pelas cores nos slides de conteúdo
+        palette = [accent_color]
+        if accent_color_2: palette.append(accent_color_2)
+        if accent_color_3: palette.append(accent_color_3)
+        self.palette       = palette
         self.username      = username.lstrip("@")
         self.creator_name  = creator_name
         self.brand_label   = brand_label
         self.profile_photo = profile_photo
+        self.use_images    = use_images
         self._pexels_key   = pexels_api_key
         self._cache_dir    = cache_dir
         self._fonts_dir    = Path(fonts_dir) if fonts_dir else None
@@ -340,7 +349,7 @@ class CarouselCreator:
         draw = ImageDraw.Draw(img)
 
         # foto de fundo com gradiente
-        if visual and self._pexels_key and self._cache_dir:
+        if self.use_images and visual and self._pexels_key and self._cache_dir:
             bg = _pexels_fetch(visual, self._pexels_key, self._cache_dir)
             if bg:
                 bg = _fit_cover(bg, W, H)
@@ -421,13 +430,14 @@ class CarouselCreator:
 
     # ── Content ───────────────────────────────────────────────────────────────
 
-    def _slide_content(self, slide: dict, number: int, total: int, dark: bool) -> Image.Image:
+    def _slide_content(self, slide: dict, number: int, total: int, dark: bool, palette_idx: int = 0) -> Image.Image:
         title        = slide.get("title", "")
         title_hl     = slide.get("title_highlight", "")
         body         = slide.get("body", "")
         section_label= slide.get("section_label", "")
 
-        acc = _accent_for_dark(self.accent) if dark else _accent_for_light(self.accent)
+        base_color = self.palette[palette_idx % len(self.palette)]
+        acc = _accent_for_dark(base_color) if dark else _accent_for_light(base_color)
 
         if dark:
             bg_color   = _DARK
@@ -595,7 +605,7 @@ class CarouselCreator:
             elif i == total - 1:
                 img = self._slide_cta(slide)
             else:
-                img = self._slide_content(slide, i + 1, total, dark=(i % 2 == 1))
+                img = self._slide_content(slide, i + 1, total, dark=(i % 2 == 1), palette_idx=i - 1)
 
             images.append(img)
 
