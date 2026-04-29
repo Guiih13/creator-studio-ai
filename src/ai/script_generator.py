@@ -170,9 +170,13 @@ _PT_FIXES = [
 ]
 
 
+_DASH_RE = _re.compile(r'\s*[—–]\s*')
+
+
 def _fix_pt_accents(text: str) -> str:
     for pattern, repl in _PT_FIXES:
         text = pattern.sub(repl, text)
+    text = _DASH_RE.sub(' ', text)
     return text
 
 
@@ -217,6 +221,18 @@ def _parse_json(text: str) -> dict | None:
 # PUBLIC API
 # ─────────────────────────────────────────────────────────────────────────────
 
+_TOPIC_GEN_PROMPT = """Você é um estrategista de conteúdo para Instagram. O criador vai te dar uma descrição geral sobre o que quer abordar, e você deve sugerir exatamente 5 temas específicos para carrosseis.
+
+Cada tema deve:
+- Ser uma frase completa e específica (não um título de slide, mas o ASSUNTO do carrossel)
+- Ter potencial de gerar engajamento alto (curiosidade, polêmica ou utilidade prática)
+- Ser diferente dos outros 4 em ângulo e abordagem
+- Estar adequado para o formato carrossel (profundidade suficiente para 6-10 slides)
+
+Responda APENAS com JSON válido. Sem texto antes ou depois.
+
+{"topics": ["tema 1 específico e completo", "tema 2", "tema 3", "tema 4", "tema 5"]}"""
+
 _TITLE_GEN_PROMPT = """Gere exatamente 5 opções de título para o COVER de um carrossel Instagram sobre o tema informado.
 Cada opção deve usar uma fórmula de hook diferente. Regras:
 - Máximo 4 palavras por título, preferencialmente 2-3.
@@ -248,6 +264,32 @@ Regras:
 Responda APENAS com JSON válido. Sem texto antes ou depois.
 
 {"options": ["legenda 1", "legenda 2", "legenda 3", "legenda 4", "legenda 5"]}"""
+
+
+def generate_topic_options(
+    description: str,
+    anthropic_api_key: str,
+    model: str = "claude-sonnet-4-6",
+    niche: str = "",
+) -> list[str]:
+    """Sugere 5 temas específicos de carrossel a partir de uma descrição ampla."""
+    import anthropic
+    client = anthropic.Anthropic(api_key=anthropic_api_key)
+    niche_ctx = f"Nicho/área do criador: {niche}\n" if niche else ""
+    user_msg = f"{niche_ctx}Descrição do que o criador quer abordar: {description}"
+    try:
+        msg = client.messages.create(
+            model=model,
+            max_tokens=512,
+            system=_TOPIC_GEN_PROMPT,
+            messages=[{"role": "user", "content": user_msg}],
+        )
+        data = _parse_json(msg.content[0].text)
+        if data and "topics" in data:
+            return [t for t in data["topics"] if isinstance(t, str)]
+    except Exception:
+        pass
+    return []
 
 
 def generate_title_options(

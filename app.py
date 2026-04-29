@@ -18,6 +18,7 @@ from PIL import Image
 from config import settings
 from src.ai.script_generator import (
     generate_carousel_script,
+    generate_topic_options,
     generate_title_options,
     generate_caption_options,
     HOOK_STYLES,
@@ -254,13 +255,15 @@ with st.sidebar:
     st.caption("Perfil de marca")
     _pcol1, _pcol2 = st.columns([4, 1])
     with _pcol1:
-        st.selectbox(
+        _selected_profile = st.selectbox(
             "Perfil",
             _all_profiles,
             index=_all_profiles.index(USER_ID) if USER_ID in _all_profiles else 0,
-            key="active_profile",
             label_visibility="collapsed",
         )
+    if _selected_profile != USER_ID:
+        st.session_state["active_profile"] = _selected_profile
+        st.rerun()
     with _pcol2:
         if st.button("＋", help="Criar novo perfil", use_container_width=True):
             st.session_state["_creating_profile"] = True
@@ -407,11 +410,62 @@ st.markdown("""
 
 st.divider()
 
+# ── Etapa 0: Gerador de temas ─────────────────────────────────────────────────
+
+# Pre-fill topic input if user picked a suggested topic (must happen before widget renders)
+_prefill_topic = st.session_state.pop("_prefill_topic", None)
+if _prefill_topic is not None:
+    st.session_state["topic_input"] = _prefill_topic
+
+with st.expander("✦ Não sabe o tema? Deixe a IA sugerir 5 ideias"):
+    _broad_desc = st.text_input(
+        "Descreva brevemente o que quer abordar",
+        placeholder="Ex: produtividade para empreendedores, marketing no Instagram, saúde mental no trabalho",
+        key="_broad_description",
+    )
+    if st.button("Sugerir 5 temas", disabled=not _broad_desc, use_container_width=True):
+        if not settings.ANTHROPIC_API_KEY:
+            st.error("Configure ANTHROPIC_API_KEY no arquivo .env")
+            st.stop()
+        with st.spinner("Gerando sugestões de tema..."):
+            _suggested = generate_topic_options(
+                description=_broad_desc,
+                anthropic_api_key=settings.ANTHROPIC_API_KEY,
+                model=settings.ANTHROPIC_MODEL,
+                niche=st.session_state.get("niche", ""),
+            )
+        if _suggested:
+            st.session_state["_topic_suggestions"] = _suggested
+            st.session_state.pop("_topic_suggestion_idx", None)
+        else:
+            st.error("Não foi possível gerar sugestões. Tente novamente.")
+
+    _suggestions = st.session_state.get("_topic_suggestions", [])
+    if _suggestions:
+        _picked_idx = st.radio(
+            "Escolha um tema:",
+            range(len(_suggestions)),
+            format_func=lambda i: _suggestions[i],
+            key="_topic_suggestion_idx",
+        )
+        if st.button("Usar este tema →", type="primary", use_container_width=True):
+            st.session_state["_prefill_topic"] = _suggestions[_picked_idx]
+            st.session_state.pop("_topic_suggestions", None)
+            st.session_state.pop("_topic_suggestion_idx", None)
+            # Reset downstream state
+            st.session_state.pop("title_options", None)
+            st.session_state.pop("selected_title_idx", None)
+            st.session_state.pop("caption_options", None)
+            st.session_state.pop("selected_caption_idx", None)
+            st.session_state.pop("carousel_data", None)
+            st.rerun()
+
 # ── Etapa 1: Tema + configurações ────────────────────────────────────────────
 
 topic = st.text_input(
     "Sobre o que é o carrossel?",
     placeholder="Ex: Como usar IA no consultório médico sem violar a LGPD",
+    key="topic_input",
 )
 
 with st.expander("Configurações avançadas"):
