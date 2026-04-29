@@ -25,6 +25,7 @@ from src.ai.script_generator import (
 from src.creators.brand_profile import (
     load_brand, save_brand,
     load_photo, save_photo, photo_bytes,
+    list_profiles, create_profile,
 )
 
 st.set_page_config(
@@ -150,7 +151,14 @@ div[data-testid="stDownloadButton"] button {
 """, unsafe_allow_html=True)
 
 DATA_DIR = settings.DATA_DIR
-USER_ID = "default"  # fase MVP — single user; substituir por auth depois
+
+# USER_ID dinâmico por perfil de marca (auth vem depois)
+_all_profiles = list_profiles(DATA_DIR)
+if "default" not in _all_profiles:
+    _all_profiles = ["default"] + _all_profiles
+USER_ID = st.session_state.get("active_profile", "default")
+if USER_ID not in _all_profiles:
+    USER_ID = "default"
 
 
 @st.cache_resource(show_spinner=False)
@@ -212,11 +220,62 @@ def _get_creator() -> object:
 brand = load_brand(DATA_DIR, USER_ID)
 saved_photo_bytes = photo_bytes(DATA_DIR, USER_ID)
 
+
+def _clear_slide_edit_keys() -> None:
+    for k in list(st.session_state.keys()):
+        if k.startswith(("_etitle_", "_ehl_", "_elbl_", "_ebody_")):
+            del st.session_state[k]
+
+
+def _apply_slide_edits(data: dict) -> dict:
+    """Lê os campos editados do session_state e retorna carousel_data atualizado."""
+    slides = []
+    for i, slide in enumerate(data.get("slides", [])):
+        slides.append({
+            **slide,
+            "title":          st.session_state.get(f"_etitle_{i}", slide.get("title", "")),
+            "title_highlight":st.session_state.get(f"_ehl_{i}",    slide.get("title_highlight", "")),
+            "section_label":  st.session_state.get(f"_elbl_{i}",   slide.get("section_label", "")),
+            "body":           st.session_state.get(f"_ebody_{i}",  slide.get("body", "")),
+        })
+    return {**data, "slides": slides}
+
 # Fallback para defaults de secrets quando não há dados salvos no disco
 def _brand_default(key: str, secret_val: str) -> str:
     return brand.get(key) or secret_val
 
 with st.sidebar:
+    # ── Seletor de perfis ─────────────────────────────────────────────────────
+    st.caption("Perfil de marca")
+    _pcol1, _pcol2 = st.columns([4, 1])
+    with _pcol1:
+        st.selectbox(
+            "Perfil",
+            _all_profiles,
+            index=_all_profiles.index(USER_ID) if USER_ID in _all_profiles else 0,
+            key="active_profile",
+            label_visibility="collapsed",
+        )
+    with _pcol2:
+        if st.button("＋", help="Criar novo perfil", use_container_width=True):
+            st.session_state["_creating_profile"] = True
+
+    if st.session_state.get("_creating_profile"):
+        _new_name = st.text_input("Nome do novo perfil", key="_new_profile_name_input")
+        _c1, _c2 = st.columns(2)
+        with _c1:
+            if st.button("Criar", use_container_width=True) and _new_name.strip():
+                _slug = _new_name.strip().lower().replace(" ", "_")
+                create_profile(DATA_DIR, _slug)
+                st.session_state["active_profile"] = _slug
+                st.session_state["_creating_profile"] = False
+                st.rerun()
+        with _c2:
+            if st.button("Cancelar", use_container_width=True):
+                st.session_state["_creating_profile"] = False
+                st.rerun()
+
+    st.divider()
     st.title("Marca Pessoal")
 
     st.caption("Paleta de cores dos slides")
@@ -541,6 +600,7 @@ if _etapa3_liberada or _selected_title_idx == -1:
             st.error("Não foi possível gerar o roteiro. Tente novamente.")
             st.stop()
 
+        _clear_slide_edit_keys()
         st.session_state["carousel_data"] = data
 
 if "carousel_data" in st.session_state:
@@ -555,8 +615,54 @@ if "carousel_data" in st.session_state:
             st.markdown(slide.get("body", ""))
             st.divider()
 
+    # ── Editor de slides ──────────────────────────────────────────────────────
+    st.markdown("""<style>
+    .slide-editor-header {
+        font-size: 11px; font-weight: 700; color: rgba(255,255,255,.4);
+        letter-spacing: .12em; text-transform: uppercase; margin-bottom: 4px;
+    }
+    </style>""", unsafe_allow_html=True)
+
+    _SLIDE_TYPE_LABEL = {0: "COVER", -1: "CTA"}
+
+    with st.expander("✏️ Editar slides antes de renderizar", expanded=True):
+        slides = data.get("slides", [])
+        for i, slide in enumerate(slides):
+            _stype = (
+                "COVER" if i == 0
+                else "CTA" if i == len(slides) - 1
+                else slide.get("section_label", f"SLIDE {i + 1}")
+            )
+            st.markdown(f"**Slide {i + 1}** — {_stype}")
+            _c1, _c2 = st.columns([3, 1])
+            with _c1:
+                st.text_input(
+                    "Título", value=slide.get("title", ""),
+                    key=f"_etitle_{i}", label_visibility="collapsed",
+                    placeholder="TÍTULO",
+                )
+            with _c2:
+                st.text_input(
+                    "Highlight", value=slide.get("title_highlight", ""),
+                    key=f"_ehl_{i}", label_visibility="collapsed",
+                    placeholder="Highlight",
+                )
+            if i != 0 and i != len(slides) - 1:
+                st.text_input(
+                    "Section label", value=slide.get("section_label", ""),
+                    key=f"_elbl_{i}", label_visibility="collapsed",
+                    placeholder="Section label (ex: O PROBLEMA)",
+                )
+            st.text_area(
+                "Corpo", value=slide.get("body", ""),
+                key=f"_ebody_{i}", label_visibility="collapsed",
+                placeholder="Texto do slide...", height=80,
+            )
+            if i < len(slides) - 1:
+                st.divider()
+
     st.divider()
-    st.subheader("Gerar Imagens")
+    st.subheader("Renderizar")
 
     gerar_imgs = st.button("Renderizar Slides", type="primary", use_container_width=True)
 
@@ -567,8 +673,10 @@ if "carousel_data" in st.session_state:
         def _prog(current, total, label):
             bar.progress(current / max(total, 1), text=f"Slide {current}/{total}: {label[:50]}")
 
+        render_data = _apply_slide_edits(data)
+
         try:
-            images = creator.generate(data, progress_callback=_prog)
+            images = creator.generate(render_data, progress_callback=_prog)
         except Exception:
             from src.creators.carousel_creator import CarouselCreator
             brand_local = load_brand(DATA_DIR, USER_ID)
@@ -586,15 +694,19 @@ if "carousel_data" in st.session_state:
                 use_images=st.session_state.get("use_images", True),
                 fonts_dir=str(Path(DATA_DIR) / "fonts"),
             )
-            images = creator.generate(data, progress_callback=_prog)
+            images = creator.generate(render_data, progress_callback=_prog)
         bar.progress(1.0, text="Concluído!")
 
         st.success(f"{len(images)} slides gerados.")
 
-        cols = st.columns(min(3, len(images)))
-        for i, img in enumerate(images[:3]):
-            with cols[i]:
-                st.image(img, caption=f"Slide {i + 1}", use_container_width=True)
+        # Preview completo — todos os slides em grade de 3 colunas
+        _N_COLS = 3
+        for _row in range(0, len(images), _N_COLS):
+            _row_imgs = images[_row:_row + _N_COLS]
+            _cols = st.columns(_N_COLS)
+            for _j, _img in enumerate(_row_imgs):
+                with _cols[_j]:
+                    st.image(_img, caption=f"Slide {_row + _j + 1}", use_container_width=True)
 
         zip_bytes = creator.to_zip(images)
         st.download_button(

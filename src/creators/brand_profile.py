@@ -94,6 +94,27 @@ def save_photo(data_dir: str, photo: Image.Image, user_id: str = "default") -> N
     photo.convert("RGB").save(_photo_path(data_dir, user_id), format="JPEG", quality=92)
 
 
+def list_profiles(data_dir: str) -> list[str]:
+    p = Path(data_dir)
+    if not p.exists():
+        return ["default"]
+    profiles = [
+        d.name for d in p.iterdir()
+        if d.is_dir() and (d / "brand" / "brand.json").exists()
+    ]
+    return sorted(profiles) if profiles else ["default"]
+
+
+def create_profile(data_dir: str, profile_name: str) -> None:
+    """Cria perfil com configurações padrão se não existir."""
+    path = _json_path(data_dir, profile_name)
+    if not path.exists():
+        path.write_text(
+            json.dumps(BRAND_DEFAULTS, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+
 def has_photo(data_dir: str, user_id: str = "default") -> bool:
     return _photo_path(data_dir, user_id).exists()
 
