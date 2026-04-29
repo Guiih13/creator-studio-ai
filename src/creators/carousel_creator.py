@@ -25,8 +25,14 @@ from PIL import Image, ImageDraw, ImageFont
 # CONSTANTES
 # ─────────────────────────────────────────────────────────────────────────────
 
-W, H = 1080, 1350
+W, H = 1080, 1350   # defaults (4:5)
 PAD  = 80
+
+FORMAT_DIMS: dict[str, tuple[int, int]] = {
+    "4:5":  (1080, 1350),
+    "1:1":  (1080, 1080),
+    "9:16": (1080, 1920),
+}
 
 _DARK  = "#0A0A0A"
 _LIGHT = "#F4EFE8"
@@ -304,9 +310,9 @@ class CarouselCreator:
         fonts_dir: str = "",
         brand_label: str = "",
         use_images: bool = True,
+        output_format: str = "4:5",
     ):
         self.accent        = accent_color
-        # palette: cicla pelas cores nos slides de conteúdo
         self.bg_dark  = accent_color_2 if accent_color_2 else "#0A0A0A"
         self.bg_light = accent_color_3 if accent_color_3 else "#F4EFE8"
         self.username      = username.lstrip("@")
@@ -317,6 +323,7 @@ class CarouselCreator:
         self._pexels_key   = pexels_api_key
         self._cache_dir    = cache_dir
         self._fonts_dir    = Path(fonts_dir) if fonts_dir else None
+        self.W, self.H     = FORMAT_DIMS.get(output_format, (1080, 1350))
 
     def _f(self, name: str, size: int) -> ImageFont.FreeTypeFont:
         return _load(name, size, self._fonts_dir)
@@ -338,6 +345,7 @@ class CarouselCreator:
     # ── Cover ─────────────────────────────────────────────────────────────────
 
     def _slide_cover(self, slide: dict) -> Image.Image:
+        W, H = self.W, self.H
         title    = slide.get("title", "")
         title_hl = slide.get("title_highlight", "")
         body     = slide.get("body", "")
@@ -429,6 +437,7 @@ class CarouselCreator:
     # ── Content ───────────────────────────────────────────────────────────────
 
     def _slide_content(self, slide: dict, number: int, total: int, dark: bool) -> Image.Image:
+        W, H = self.W, self.H
         title        = slide.get("title", "")
         title_hl     = slide.get("title_highlight", "")
         body         = slide.get("body", "")
@@ -524,6 +533,7 @@ class CarouselCreator:
     # ── CTA ───────────────────────────────────────────────────────────────────
 
     def _slide_cta(self, slide: dict) -> Image.Image:
+        W, H = self.W, self.H
         title = slide.get("title", "")
         body  = slide.get("body", "")
 

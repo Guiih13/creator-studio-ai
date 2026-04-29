@@ -25,17 +25,19 @@ try:
 except ImportError:
     PLAYWRIGHT_OK = False
 
-from src.creators.carousel_creator import _pexels_fetch
+from src.creators.carousel_creator import _pexels_fetch, FORMAT_DIMS
 
 _GOOGLE_FONTS = (
     "@import url('https://fonts.googleapis.com/css2?"
     "family=Oswald:wght@700&family=Inter:wght@300;400;600;700;900&display=swap');"
 )
 
-_BASE_CSS = f"""
+
+def _base_css(w: int, h: int) -> str:
+    return f"""
 {_GOOGLE_FONTS}
 * {{ margin:0; padding:0; box-sizing:border-box; }}
-html, body {{ width:1080px; height:1350px; overflow:hidden; -webkit-font-smoothing:antialiased; }}
+html, body {{ width:{w}px; height:{h}px; overflow:hidden; -webkit-font-smoothing:antialiased; }}
 """
 
 
@@ -140,6 +142,7 @@ class CarouselHTMLRenderer:
         cache_dir: str = "",
         brand_label: str = "",
         use_images: bool = True,
+        output_format: str = "4:5",
     ):
         self.accent = accent_color
         self.bg_dark  = accent_color_2 if accent_color_2 else "#0A0A0A"
@@ -153,6 +156,7 @@ class CarouselHTMLRenderer:
         self._cache_dir = cache_dir
         self._pw = None
         self._browser = None
+        self.W, self.H = FORMAT_DIMS.get(output_format, (1080, 1350))
 
     # ── Browser lifecycle ─────────────────────────────────────────────────────
 
@@ -192,7 +196,7 @@ class CarouselHTMLRenderer:
     def _render(self, html_str: str) -> Image.Image:
         self._start()
         page = self._browser.new_page(
-            viewport={"width": 1080, "height": 1350},
+            viewport={"width": self.W, "height": self.H},
             device_scale_factor=1,
         )
         try:
@@ -234,8 +238,8 @@ class CarouselHTMLRenderer:
         body_e = html_lib.escape(body)
 
         return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-{_BASE_CSS}
-.slide{{width:1080px;height:1350px;position:relative;display:flex;flex-direction:column;
+{_base_css(self.W, self.H)}
+.slide{{width:{self.W}px;height:{self.H}px;position:relative;display:flex;flex-direction:column;
   justify-content:flex-end;background:{self.bg_dark};}}
 .bg{{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;}}
 .ov{{position:absolute;inset:0;background:linear-gradient(to top,
@@ -308,9 +312,9 @@ class CarouselHTMLRenderer:
 """ if bg_b64 else ""
 
         return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-{_BASE_CSS}
+{_base_css(self.W, self.H)}
 {img_css}
-.slide{{width:1080px;height:1350px;background:{bg};position:relative;
+.slide{{width:{self.W}px;height:{self.H}px;background:{bg};position:relative;
   display:flex;flex-direction:column;justify-content:flex-end;
   padding:0 80px 84px 80px;}}
 .top{{position:absolute;top:48px;left:80px;right:80px;
@@ -362,8 +366,8 @@ class CarouselHTMLRenderer:
         body_html = f'<div class="body">{html_lib.escape(body)}</div>' if body else ""
 
         return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-{_BASE_CSS}
-.slide{{width:1080px;height:1350px;background:#0D0D0D;display:flex;
+{_base_css(self.W, self.H)}
+.slide{{width:{self.W}px;height:{self.H}px;background:#0D0D0D;display:flex;
   flex-direction:column;align-items:center;justify-content:center;
   padding:80px;text-align:center;}}
 .pi{{width:200px;height:200px;border-radius:50%;border:5px solid {acc};

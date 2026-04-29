@@ -22,6 +22,10 @@ from src.ai.script_generator import (
     generate_caption_options,
     HOOK_STYLES,
 )
+from src.creators.carousel_history import (
+    save_carousel, load_carousel, list_history, delete_carousel,
+)
+from src.creators.carousel_creator import FORMAT_DIMS
 from src.creators.brand_profile import (
     load_brand, save_brand,
     load_photo, save_photo, photo_bytes,
@@ -199,6 +203,7 @@ def _get_creator() -> object:
         pexels_api_key=settings.PEXELS_API_KEY,
         cache_dir=cache_dir,
         use_images=st.session_state.get("use_images", True),
+        output_format=st.session_state.get("output_format", "4:5"),
     )
 
     fonts_dir = str(Path(DATA_DIR) / "fonts")
@@ -357,6 +362,36 @@ with st.sidebar:
         st.success("Salvo!")
         st.rerun()
 
+    # ── Histórico ─────────────────────────────────────────────────────────────
+    st.divider()
+    st.caption("Histórico")
+    _hist = list_history(DATA_DIR, USER_ID)
+    if not _hist:
+        st.caption("Nenhum carrossel gerado ainda.")
+    else:
+        _FMT_ICON = {"4:5": "📱", "1:1": "⬜", "9:16": "📲"}
+        for _entry in _hist[:15]:
+            _label = (_entry.get("cover_title") or _entry.get("topic") or "Sem título")[:28]
+            _icon  = _FMT_ICON.get(_entry.get("output_format", "4:5"), "📄")
+            _hcol1, _hcol2 = st.columns([5, 1])
+            with _hcol1:
+                if st.button(
+                    f"{_icon} {_label}",
+                    key=f"hist_load_{_entry['entry_id']}",
+                    use_container_width=True,
+                    help=_entry.get("topic", ""),
+                ):
+                    _loaded = load_carousel(DATA_DIR, USER_ID, _entry["entry_id"])
+                    if _loaded:
+                        _clear_slide_edit_keys()
+                        st.session_state["carousel_data"] = _loaded["carousel_data"]
+                        st.session_state["carousel_topic"] = _loaded.get("topic", "")
+                        st.rerun()
+            with _hcol2:
+                if st.button("🗑", key=f"hist_del_{_entry['entry_id']}", help="Apagar"):
+                    delete_carousel(DATA_DIR, USER_ID, _entry["entry_id"])
+                    st.rerun()
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # MAIN — Gerador
@@ -403,6 +438,13 @@ with st.expander("Configurações avançadas"):
             value=True,
             key="use_images",
             help="Ativado: todos os slides com foto. Desativado: só o cover tem foto.",
+        )
+        st.selectbox(
+            "Formato",
+            list(FORMAT_DIMS.keys()),
+            format_func=lambda k: {"4:5": "4:5 — Instagram Portrait", "1:1": "1:1 — Feed Quadrado", "9:16": "9:16 — Stories / Reels"}[k],
+            key="output_format",
+            help="Dimensões do slide. Selecione o formato antes de renderizar.",
         )
 
     required_topics_raw = st.text_area(
@@ -602,6 +644,11 @@ if _etapa3_liberada or _selected_title_idx == -1:
 
         _clear_slide_edit_keys()
         st.session_state["carousel_data"] = data
+        st.session_state["carousel_topic"] = topic
+        save_carousel(
+            DATA_DIR, USER_ID, data, topic,
+            output_format=st.session_state.get("output_format", "4:5"),
+        )
 
 if "carousel_data" in st.session_state:
     data = st.session_state["carousel_data"]
@@ -693,6 +740,7 @@ if "carousel_data" in st.session_state:
                 cache_dir=str(Path(DATA_DIR) / "pexels_cache"),
                 use_images=st.session_state.get("use_images", True),
                 fonts_dir=str(Path(DATA_DIR) / "fonts"),
+                output_format=st.session_state.get("output_format", "4:5"),
             )
             images = creator.generate(render_data, progress_callback=_prog)
         bar.progress(1.0, text="Concluído!")
@@ -712,7 +760,7 @@ if "carousel_data" in st.session_state:
         st.download_button(
             label="Baixar todos os slides (ZIP)",
             data=zip_bytes,
-            file_name=f"carrossel_{datetime.now().strftime('%Y%m%d_%H%M')}.zip",
+            file_name=f"carrossel_{st.session_state.get('output_format','4x5')}_{datetime.now().strftime('%Y%m%d_%H%M')}.zip",
             mime="application/zip",
             use_container_width=True,
         )
