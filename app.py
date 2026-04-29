@@ -16,7 +16,12 @@ import streamlit as st
 from PIL import Image
 
 from config import settings
-from src.ai.script_generator import generate_carousel_script
+from src.ai.script_generator import (
+    generate_carousel_script,
+    generate_title_options,
+    generate_caption_options,
+    HOOK_STYLES,
+)
 from src.creators.brand_profile import (
     load_brand, save_brand,
     load_photo, save_photo, photo_bytes,
@@ -308,6 +313,8 @@ st.markdown("""
 
 st.divider()
 
+# ── Etapa 1: Tema + configurações ────────────────────────────────────────────
+
 topic = st.text_input(
     "Sobre o que é o carrossel?",
     placeholder="Ex: Como usar IA no consultório médico sem violar a LGPD",
@@ -323,14 +330,20 @@ with st.expander("Configurações avançadas"):
         )
     with col2:
         tone = st.selectbox(
-            "Tom",
+            "Tom do texto",
             ["Direto e informativo", "Provocativo e instigante", "Didático e acessível", "Técnico e aprofundado"],
+            help="Define a linguagem e a postura dos slides de conteúdo.",
+        )
+        hook_style = st.selectbox(
+            "Estilo do título / hook",
+            ["— Automático —"] + list(HOOK_STYLES.keys()),
+            help="Fórmula usada no título do cover — o que para o scroll.",
         )
         use_images = st.toggle(
             "Imagens automáticas nos slides",
             value=True,
             key="use_images",
-            help="Busca fotos do Pexels automaticamente. Desative para slides sem imagem de fundo.",
+            help="Ativado: todos os slides com foto. Desativado: só o cover tem foto.",
         )
 
     required_topics_raw = st.text_area(
@@ -341,41 +354,200 @@ with st.expander("Configurações avançadas"):
     )
     required_topics = [t.strip() for t in required_topics_raw.splitlines() if t.strip()]
 
-gerar = st.button("Gerar Carrossel", type="primary", use_container_width=True, disabled=not topic)
+# ── Etapa 2: Gerar opções de título ──────────────────────────────────────────
 
-if gerar and topic:
+st.markdown('<div class="input-label">Etapa 1 — Título do cover</div>', unsafe_allow_html=True)
+
+col_title_btn, col_title_skip = st.columns([3, 1])
+with col_title_btn:
+    gerar_titulos = st.button(
+        "Sugerir títulos",
+        use_container_width=True,
+        disabled=not topic,
+        help="Gera 5 opções de título para você escolher",
+    )
+with col_title_skip:
+    pular_titulo = st.button("Pular etapa", use_container_width=True, disabled=not topic)
+
+if gerar_titulos and topic:
     if not settings.ANTHROPIC_API_KEY:
         st.error("Configure ANTHROPIC_API_KEY no arquivo .env")
         st.stop()
+    with st.spinner("Gerando opções de título..."):
+        opts = generate_title_options(
+            topic=topic,
+            anthropic_api_key=settings.ANTHROPIC_API_KEY,
+            model=settings.ANTHROPIC_MODEL,
+            niche=st.session_state.get("niche", ""),
+        )
+    if opts:
+        st.session_state["title_options"] = opts
+        st.session_state.pop("selected_title_idx", None)
+        st.session_state.pop("caption_options", None)
+        st.session_state.pop("selected_caption_idx", None)
+        st.session_state.pop("carousel_data", None)
 
-    with st.spinner("Gerando roteiro com IA..."):
-        try:
-            data = generate_carousel_script(
+if pular_titulo and topic:
+    st.session_state["title_options"] = []
+    st.session_state["selected_title_idx"] = -1  # -1 = pular
+    st.session_state.pop("caption_options", None)
+    st.session_state.pop("selected_caption_idx", None)
+    st.session_state.pop("carousel_data", None)
+
+_title_options = st.session_state.get("title_options", [])
+_selected_title_idx = st.session_state.get("selected_title_idx", None)
+
+if _title_options:
+    st.markdown("""
+    <style>
+    div[data-testid="stRadio"] label { font-size: 1rem !important; }
+    </style>""", unsafe_allow_html=True)
+
+    HOOK_EMOJI = {
+        "Choque e polêmica": "💥",
+        "Pergunta incômoda": "❓",
+        "Número impactante": "🔢",
+        "Segredo revelado": "🔓",
+        "Chamada direta": "📣",
+    }
+    radio_labels = [
+        f"{HOOK_EMOJI.get(o.get('hook', ''), '✦')} **{o['title']}** — _{o.get('hook', '')}_"
+        for o in _title_options
+    ]
+    chosen_idx = st.radio(
+        "Escolha o título do cover:",
+        range(len(radio_labels)),
+        format_func=lambda i: radio_labels[i],
+        key="selected_title_idx",
+    )
+    chosen_title_obj = _title_options[chosen_idx]
+    st.caption(f"Preview: **{chosen_title_obj['title']}** (highlight: _{chosen_title_obj.get('title_highlight', '')}_)")
+
+# ── Etapa 3: Gerar opções de legenda ─────────────────────────────────────────
+
+_etapa2_liberada = (
+    _selected_title_idx is not None and (
+        _selected_title_idx == -1 or bool(_title_options)
+    )
+)
+
+if _etapa2_liberada:
+    st.markdown('<div class="input-label" style="margin-top:16px;">Etapa 2 — Legenda do post</div>', unsafe_allow_html=True)
+
+    chosen_title_str = (
+        _title_options[_selected_title_idx]["title"]
+        if _title_options and _selected_title_idx >= 0
+        else ""
+    )
+
+    col_cap_btn, col_cap_skip = st.columns([3, 1])
+    with col_cap_btn:
+        gerar_legendas = st.button(
+            "Sugerir legendas",
+            use_container_width=True,
+            help="Gera 5 opções de legenda para publicação no Instagram",
+        )
+    with col_cap_skip:
+        pular_legenda = st.button("Pular etapa ", use_container_width=True)
+
+    if gerar_legendas:
+        if not settings.ANTHROPIC_API_KEY:
+            st.error("Configure ANTHROPIC_API_KEY no arquivo .env")
+            st.stop()
+        with st.spinner("Gerando opções de legenda..."):
+            cap_opts = generate_caption_options(
                 topic=topic,
+                chosen_title=chosen_title_str,
                 anthropic_api_key=settings.ANTHROPIC_API_KEY,
                 model=settings.ANTHROPIC_MODEL,
                 niche=st.session_state.get("niche", ""),
-                n_slides=n_slides,
-                objective=objective,
-                tone=tone,
-                required_topics=required_topics or None,
             )
-        except Exception as e:
-            st.error(f"Erro na geração: {e}")
+        if cap_opts:
+            st.session_state["caption_options"] = cap_opts
+            st.session_state.pop("selected_caption_idx", None)
+            st.session_state.pop("carousel_data", None)
+
+    if pular_legenda:
+        st.session_state["caption_options"] = []
+        st.session_state["selected_caption_idx"] = -1
+        st.session_state.pop("carousel_data", None)
+
+    _cap_options = st.session_state.get("caption_options", [])
+    _selected_cap_idx = st.session_state.get("selected_caption_idx", None)
+
+    if _cap_options:
+        chosen_cap_idx = st.radio(
+            "Escolha a legenda:",
+            range(len(_cap_options)),
+            format_func=lambda i: f"Opção {i + 1}",
+            key="selected_caption_idx",
+        )
+        st.text_area(
+            "Preview da legenda selecionada",
+            value=_cap_options[chosen_cap_idx],
+            height=100,
+            disabled=True,
+            label_visibility="collapsed",
+        )
+
+# ── Etapa 4: Gerar roteiro ────────────────────────────────────────────────────
+
+_etapa3_liberada = _etapa2_liberada and (
+    st.session_state.get("selected_caption_idx") is not None
+)
+
+if _etapa3_liberada or _selected_title_idx == -1:
+    st.markdown('<div class="input-label" style="margin-top:16px;">Etapa 3 — Roteiro</div>', unsafe_allow_html=True)
+
+    gerar = st.button("Gerar Roteiro", type="primary", use_container_width=True, disabled=not topic)
+
+    if gerar and topic:
+        if not settings.ANTHROPIC_API_KEY:
+            st.error("Configure ANTHROPIC_API_KEY no arquivo .env")
             st.stop()
 
-    if not data:
-        st.error("Não foi possível gerar o roteiro. Tente novamente.")
-        st.stop()
+        # título e legenda escolhidos
+        _tidx = st.session_state.get("selected_title_idx", -1)
+        _title_opts = st.session_state.get("title_options", [])
+        _final_title = (
+            _title_opts[_tidx]["title"] if _title_opts and _tidx >= 0 else ""
+        )
+        _cidx = st.session_state.get("selected_caption_idx", -1)
+        _cap_opts = st.session_state.get("caption_options", [])
+        _final_caption = _cap_opts[_cidx] if _cap_opts and _cidx >= 0 else ""
 
-    st.session_state["carousel_data"] = data
+        _hook = hook_style if hook_style != "— Automático —" else ""
+
+        with st.spinner("Gerando roteiro com IA..."):
+            try:
+                data = generate_carousel_script(
+                    topic=topic,
+                    anthropic_api_key=settings.ANTHROPIC_API_KEY,
+                    model=settings.ANTHROPIC_MODEL,
+                    niche=st.session_state.get("niche", ""),
+                    n_slides=n_slides,
+                    objective=objective,
+                    tone=tone,
+                    hook_style=_hook,
+                    required_topics=required_topics or None,
+                    chosen_title=_final_title,
+                    chosen_caption=_final_caption,
+                )
+            except Exception as e:
+                st.error(f"Erro na geração: {e}")
+                st.stop()
+
+        if not data:
+            st.error("Não foi possível gerar o roteiro. Tente novamente.")
+            st.stop()
+
+        st.session_state["carousel_data"] = data
 
 if "carousel_data" in st.session_state:
     data = st.session_state["carousel_data"]
 
     st.success(f"Roteiro gerado — {len(data.get('slides', []))} slides")
 
-    # Preview dos slides do roteiro
     with st.expander("Ver roteiro completo", expanded=False):
         for slide in data.get("slides", []):
             st.markdown(f"**Slide {slide.get('number', '')}** — {slide.get('section_label', 'COVER')}")
@@ -398,7 +570,6 @@ if "carousel_data" in st.session_state:
         try:
             images = creator.generate(data, progress_callback=_prog)
         except Exception:
-            # Playwright falhou — tenta com renderer PIL preservando todas as cores
             from src.creators.carousel_creator import CarouselCreator
             brand_local = load_brand(DATA_DIR, USER_ID)
             photo_local = load_photo(DATA_DIR, USER_ID)
