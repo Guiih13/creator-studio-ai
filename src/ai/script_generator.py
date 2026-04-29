@@ -79,7 +79,7 @@ Responda APENAS com JSON válido. Sem texto antes ou depois. Sem markdown. Sem `
       "title_highlight": "PALAVRA DO TÍTULO para cor de acento",
       "body": "explicação 20-35 palavras com dados e exemplos concretos",
       "bold_keywords": ["termo chave", "dado impactante"],
-      "visual_suggestion": "3-5 keywords IN ENGLISH for cover background photo (ex: doctor office, city skyline)"
+      "visual_suggestion": "3-5 keywords IN ENGLISH for THIS slide's background photo — must relate to the slide's specific content (ex: doctor office, city skyline, data charts, handshake)"
     }
   ],
   "caption": "legenda do post 2-3 frases mais CTA",

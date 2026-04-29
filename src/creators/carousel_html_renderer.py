@@ -209,7 +209,7 @@ class CarouselHTMLRenderer:
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     def _fetch_bg_b64(self, query: str) -> str | None:
-        if not self.use_images or not query or not self._pexels_key or not self._cache_dir:
+        if not query or not self._pexels_key or not self._cache_dir:
             return None
         img = _pexels_fetch(query, self._pexels_key, self._cache_dir)
         return _pil_to_b64(img) if img else None
@@ -270,6 +270,7 @@ class CarouselHTMLRenderer:
         body         = slide.get("body", "")
         section_label= slide.get("section_label", "")
         bold_kws     = slide.get("bold_keywords", [])
+        visual       = slide.get("visual_suggestion", "")
 
         title_html = _apply_highlight(title.upper(), title_hl.upper())
         body_html  = _apply_bold(body, bold_kws)
@@ -285,7 +286,6 @@ class CarouselHTMLRenderer:
             text_muted= "rgba(255,255,255,.25)"
         else:
             bg        = self.bg_light
-            # detecta luminosidade do fundo claro para ajustar texto
             h = self.bg_light.lstrip("#")
             r2, g2, b2 = int(h[0:2],16)/255, int(h[2:4],16)/255, int(h[4:6],16)/255
             lum = 0.299*r2 + 0.587*g2 + 0.114*b2
@@ -298,18 +298,28 @@ class CarouselHTMLRenderer:
                 text_body = "#4A4A4A"
                 text_muted= "rgba(13,13,13,.25)"
 
+        # imagem de fundo com tint da paleta quando use_images=True
+        bg_b64 = self._fetch_bg_b64(visual) if self.use_images and visual else None
+        bg_img_html = f'<img class="bg-img" src="data:image/jpeg;base64,{bg_b64}">' if bg_b64 else ""
+        tint_div    = f'<div class="tint"></div>' if bg_b64 else ""
+        img_css     = f"""
+.bg-img{{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;z-index:0;}}
+.tint{{position:absolute;inset:0;background:{bg};opacity:.78;z-index:1;}}
+""" if bg_b64 else ""
+
         return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
 {_BASE_CSS}
+{img_css}
 .slide{{width:1080px;height:1350px;background:{bg};position:relative;
   display:flex;flex-direction:column;justify-content:flex-end;
   padding:0 80px 84px 80px;}}
 .top{{position:absolute;top:48px;left:80px;right:80px;
-  display:flex;justify-content:space-between;align-items:center;}}
+  display:flex;justify-content:space-between;align-items:center;z-index:2;}}
 .brand{{font-family:'Inter',sans-serif;font-size:17px;font-weight:700;
   color:{text_muted};letter-spacing:.2em;text-transform:uppercase;}}
 .counter{{font-family:'Inter',sans-serif;font-size:17px;font-weight:700;
   color:{text_muted};letter-spacing:.1em;}}
-.cnt{{display:flex;flex-direction:column;gap:26px;}}
+.cnt{{display:flex;flex-direction:column;gap:26px;position:relative;z-index:2;}}
 .lbl{{font-family:'Inter',sans-serif;font-size:21px;font-weight:700;
   color:{acc};letter-spacing:.22em;text-transform:uppercase;opacity:.85;}}
 .title{{font-family:'Oswald',sans-serif;font-size:{fs}px;font-weight:700;
@@ -321,6 +331,7 @@ class CarouselHTMLRenderer:
 .body strong{{font-weight:700;color:{text_main};}}
 </style></head><body>
 <div class="slide">
+  {bg_img_html}{tint_div}
   <div class="top">
     <span class="brand">{html_lib.escape(self.brand_label.upper()) if self.brand_label else ''}</span>
     <span class="counter">@{user}</span>

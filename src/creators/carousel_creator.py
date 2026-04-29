@@ -346,8 +346,8 @@ class CarouselCreator:
         img  = Image.new("RGB", (W, H), self.bg_dark)
         draw = ImageDraw.Draw(img)
 
-        # foto de fundo com gradiente
-        if self.use_images and visual and self._pexels_key and self._cache_dir:
+        # cover sempre recebe imagem de fundo (independente do toggle)
+        if visual and self._pexels_key and self._cache_dir:
             bg = _pexels_fetch(visual, self._pexels_key, self._cache_dir)
             if bg:
                 bg = _fit_cover(bg, W, H)
@@ -433,6 +433,7 @@ class CarouselCreator:
         title_hl     = slide.get("title_highlight", "")
         body         = slide.get("body", "")
         section_label= slide.get("section_label", "")
+        visual       = slide.get("visual_suggestion", "")
 
         acc = _accent_for_dark(self.accent) if dark else _accent_for_light(self.accent)
 
@@ -443,7 +444,6 @@ class CarouselCreator:
             text_muted = (255, 255, 255, 64)
         else:
             bg_color   = self.bg_light
-            # detecta se fundo claro é escuro para ajustar cor do texto
             r, g, b = _hex(self.bg_light)
             lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
             if lum < 0.5:
@@ -457,6 +457,17 @@ class CarouselCreator:
 
         img  = Image.new("RGB", (W, H), bg_color)
         draw = ImageDraw.Draw(img)
+
+        # imagem de fundo com tint da cor da paleta (quando ativado)
+        if self.use_images and visual and self._pexels_key and self._cache_dir:
+            bg_photo = _pexels_fetch(visual, self._pexels_key, self._cache_dir)
+            if bg_photo:
+                bg_photo = _fit_cover(bg_photo, W, H)
+                img.paste(bg_photo, (0, 0))
+                r, g, b = _hex(bg_color)
+                tint = Image.new("RGBA", (W, H), (r, g, b, int(255 * 0.78)))
+                img.paste(tint, (0, 0), tint)
+                draw = ImageDraw.Draw(img)
 
         # topo: brand label (esq) + @username (dir)
         mf = self._f("inter-bold", 17)
