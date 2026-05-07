@@ -11,8 +11,10 @@ Requer: pip install playwright && playwright install chromium
 from __future__ import annotations
 
 import base64
+import hashlib
 import html as html_lib
 import io
+import random
 import re
 import zipfile
 from pathlib import Path
@@ -25,7 +27,7 @@ try:
 except ImportError:
     PLAYWRIGHT_OK = False
 
-from src.creators.carousel_creator import _pexels_fetch, FORMAT_DIMS
+from src.creators.carousel_creator import _pick_pexels_image, FORMAT_DIMS
 
 _GOOGLE_FONTS = (
     "@import url('https://fonts.googleapis.com/css2?"
@@ -157,6 +159,8 @@ class CarouselHTMLRenderer:
         self._pw = None
         self._browser = None
         self.W, self.H = FORMAT_DIMS.get(output_format, (1080, 1350))
+        self._used_photos: set = set()
+        self._rng: random.Random = random.Random()
 
     # ── Browser lifecycle ─────────────────────────────────────────────────────
 
@@ -215,7 +219,12 @@ class CarouselHTMLRenderer:
     def _fetch_bg_b64(self, query: str) -> str | None:
         if not query or not self._pexels_key or not self._cache_dir:
             return None
-        img = _pexels_fetch(query, self._pexels_key, self._cache_dir)
+        img, pid = _pick_pexels_image(
+            query, self._pexels_key, self._cache_dir,
+            used_ids=self._used_photos, rng=self._rng,
+        )
+        if pid is not None:
+            self._used_photos.add(pid)
         return _pil_to_b64(img) if img else None
 
     # ── Slide templates ───────────────────────────────────────────────────────
@@ -401,6 +410,14 @@ class CarouselHTMLRenderer:
         slides = carousel_data.get("slides", [])
         total  = len(slides)
         images: list[Image.Image] = []
+
+        # reseta uso de fotos por carrossel + semeia RNG estável (mesmo carrossel
+        # gera as mesmas escolhas em re-runs, mas carrosseis diferentes divergem)
+        self._used_photos = set()
+        seed_src = (slides[0].get("title", "") if slides else "") + "|" + \
+                   (carousel_data.get("caption", "") or "")
+        seed_int = int(hashlib.md5(seed_src.encode("utf-8")).hexdigest()[:12], 16)
+        self._rng = random.Random(seed_int)
 
         for i, slide in enumerate(slides):
             if progress_callback:

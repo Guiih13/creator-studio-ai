@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json as _json
+import random
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -196,54 +198,99 @@ def _accent_for_light(accent: str) -> str:
 # PEXELS IMAGE FETCHER
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _pexels_fetch(query: str, api_key: str, cache_dir: str) -> Image.Image | None:
+def _pexels_search(query: str, api_key: str, cache_dir: str) -> list[dict]:
+    """Busca metadata de fotos no Pexels. Cacheia o JSON por query."""
     if isinstance(query, list):
         query = " ".join(str(q) for q in query)
     query = str(query).strip()
     if not query or not api_key:
-        return None
+        return []
 
     slug = hashlib.md5(query.lower().encode()).hexdigest()[:14]
-    cache_path = Path(cache_dir) / f"pexels_{slug}.jpg"
+    meta_path = Path(cache_dir) / f"pexels_meta_{slug}.json"
 
+    if meta_path.exists():
+        try:
+            data = _json.loads(meta_path.read_text(encoding="utf-8"))
+            if isinstance(data, list) and data:
+                return data
+        except Exception:
+            meta_path.unlink(missing_ok=True)
+
+    photos: list[dict] = []
+    try:
+        for params in [
+            {"query": query, "per_page": 30, "orientation": "portrait", "size": "large"},
+            {"query": query, "per_page": 15, "size": "large"},
+        ]:
+            resp = requests.get(
+                "https://api.pexels.com/v1/search",
+                headers={"Authorization": api_key},
+                params=params,
+                timeout=10,
+            )
+            resp.raise_for_status()
+            photos = resp.json().get("photos", []) or []
+            if photos:
+                break
+        if photos:
+            Path(cache_dir).mkdir(parents=True, exist_ok=True)
+            meta_path.write_text(_json.dumps(photos), encoding="utf-8")
+    except Exception:
+        return []
+    return photos
+
+
+def _pexels_download(photo: dict, cache_dir: str) -> Image.Image | None:
+    """Baixa uma foto pela metadata. Cacheia por photo_id (não por query)."""
+    pid = photo.get("id")
+    if not pid:
+        return None
+    cache_path = Path(cache_dir) / f"pexels_photo_{pid}.jpg"
     if cache_path.exists():
         try:
             return Image.open(cache_path).convert("RGB")
         except Exception:
             cache_path.unlink(missing_ok=True)
-
+    src = photo.get("src", {}) or {}
+    url = src.get("large2x") or src.get("original") or src.get("large")
+    if not url:
+        return None
     try:
-        resp = requests.get(
-            "https://api.pexels.com/v1/search",
-            headers={"Authorization": api_key},
-            params={"query": query, "per_page": 10, "orientation": "portrait", "size": "large"},
-            timeout=10,
-        )
-        resp.raise_for_status()
-        photos = resp.json().get("photos", [])
-        if not photos:
-            # tenta sem filtro de orientação
-            resp2 = requests.get(
-                "https://api.pexels.com/v1/search",
-                headers={"Authorization": api_key},
-                params={"query": query, "per_page": 5, "size": "large"},
-                timeout=10,
-            )
-            resp2.raise_for_status()
-            photos = resp2.json().get("photos", [])
-        if not photos:
-            return None
-
-        # pega a foto com maior resolução (width * height)
-        best = max(photos, key=lambda p: p.get("width", 0) * p.get("height", 0))
-        img_url = best["src"].get("original") or best["src"]["large2x"]
-        img_resp = requests.get(img_url, timeout=30)
-        img_resp.raise_for_status()
+        r = requests.get(url, timeout=30)
+        r.raise_for_status()
         Path(cache_dir).mkdir(parents=True, exist_ok=True)
-        cache_path.write_bytes(img_resp.content)
-        return Image.open(io.BytesIO(img_resp.content)).convert("RGB")
+        cache_path.write_bytes(r.content)
+        return Image.open(io.BytesIO(r.content)).convert("RGB")
     except Exception:
         return None
+
+
+def _pick_pexels_image(
+    query: str,
+    api_key: str,
+    cache_dir: str,
+    used_ids: set | None = None,
+    rng: random.Random | None = None,
+) -> tuple[Image.Image | None, int | None]:
+    """Escolhe uma foto não usada para a query. Retorna (img, photo_id)."""
+    photos = _pexels_search(query, api_key, cache_dir)
+    if not photos:
+        return None, None
+    used_ids = used_ids if used_ids is not None else set()
+    available = [p for p in photos if p.get("id") not in used_ids]
+    if not available:
+        available = photos
+    rng = rng or random
+    chosen = rng.choice(available)
+    img = _pexels_download(chosen, cache_dir)
+    return img, chosen.get("id")
+
+
+def _pexels_fetch(query: str, api_key: str, cache_dir: str) -> Image.Image | None:
+    """Wrapper de compatibilidade. Para evitar repetições, prefira _pick_pexels_image."""
+    img, _ = _pick_pexels_image(query, api_key, cache_dir)
+    return img
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -324,9 +371,23 @@ class CarouselCreator:
         self._cache_dir    = cache_dir
         self._fonts_dir    = Path(fonts_dir) if fonts_dir else None
         self.W, self.H     = FORMAT_DIMS.get(output_format, (1080, 1350))
+        self._used_photos: set = set()
+        self._rng: random.Random = random.Random()
 
     def _f(self, name: str, size: int) -> ImageFont.FreeTypeFont:
         return _load(name, size, self._fonts_dir)
+
+    def _bg_image(self, query: str) -> Image.Image | None:
+        """Pega imagem de fundo evitando repetir fotos no mesmo carrossel."""
+        if not query or not self._pexels_key or not self._cache_dir:
+            return None
+        img, pid = _pick_pexels_image(
+            query, self._pexels_key, self._cache_dir,
+            used_ids=self._used_photos, rng=self._rng,
+        )
+        if pid is not None:
+            self._used_photos.add(pid)
+        return img
 
     def _paste_circle(
         self, img: Image.Image, diameter: int, x: int, y: int,
@@ -356,7 +417,7 @@ class CarouselCreator:
 
         # cover sempre recebe imagem de fundo (independente do toggle)
         if visual and self._pexels_key and self._cache_dir:
-            bg = _pexels_fetch(visual, self._pexels_key, self._cache_dir)
+            bg = self._bg_image(visual)
             if bg:
                 bg = _fit_cover(bg, W, H)
                 img.paste(bg, (0, 0))
@@ -469,7 +530,7 @@ class CarouselCreator:
 
         # imagem de fundo com tint da cor da paleta (quando ativado)
         if self.use_images and visual and self._pexels_key and self._cache_dir:
-            bg_photo = _pexels_fetch(visual, self._pexels_key, self._cache_dir)
+            bg_photo = self._bg_image(visual)
             if bg_photo:
                 bg_photo = _fit_cover(bg_photo, W, H)
                 img.paste(bg_photo, (0, 0))
@@ -621,6 +682,14 @@ class CarouselCreator:
         slides = carousel_data.get("slides", [])
         total  = len(slides)
         images: list[Image.Image] = []
+
+        # reseta uso de fotos por carrossel + semeia RNG estável (mesmo carrossel
+        # gera as mesmas escolhas em re-runs, mas carrosseis diferentes divergem)
+        self._used_photos = set()
+        seed_src = (slides[0].get("title", "") if slides else "") + "|" + \
+                   (carousel_data.get("caption", "") or "")
+        seed_int = int(hashlib.md5(seed_src.encode("utf-8")).hexdigest()[:12], 16)
+        self._rng = random.Random(seed_int)
 
         for i, slide in enumerate(slides):
             if progress_callback:

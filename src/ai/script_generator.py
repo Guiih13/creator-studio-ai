@@ -60,6 +60,16 @@ Penúltimo: Resumo ou dica bônus surpresa.
 - 2-4 termos ou frases curtas do corpo que merecem negrito (dados, números, conceitos-chave).
 - Devem ser substrings exatas do campo "body".
 
+## VISUAL_SUGGESTION — REGRA DE UNICIDADE
+
+Cada slide DEVE ter um `visual_suggestion` ÚNICO e visualmente distinto dos demais.
+- Varie sujeito, cena, ambiente e ângulo entre slides — NUNCA repita ou parafraseie.
+- Prefira termos concretos e cenas específicas (não conceitos abstratos).
+- Use 3-5 keywords em INGLÊS, separadas por espaço.
+- Exemplos para um carrossel sobre saúde: slide 2 "doctor consultation office", slide 3 "pharmacy shelves medicine bottles", slide 4 "patient hospital waiting room", slide 5 "blood pressure measurement", slide 6 "running outdoor park morning".
+- ERRADO: três slides com "marketing strategy", "marketing tips", "marketing growth" (todos retornam fotos parecidas).
+- CERTO: "laptop coffee desk workspace", "team meeting whiteboard", "smartphone analytics graph".
+
 ## FERRAMENTAS E TECNOLOGIA
 
 Quando mencionar ferramentas, IAs ou modelos:
@@ -80,7 +90,7 @@ Responda APENAS com JSON válido. Sem texto antes ou depois. Sem markdown. Sem `
       "title_highlight": "PALAVRA DO TÍTULO para cor de acento",
       "body": "explicação 20-35 palavras com dados e exemplos concretos",
       "bold_keywords": ["termo chave", "dado impactante"],
-      "visual_suggestion": "3-5 keywords IN ENGLISH for THIS slide's background photo — must relate to the slide's specific content (ex: doctor office, city skyline, data charts, handshake)"
+      "visual_suggestion": "3-5 keywords IN ENGLISH — MUST be unique across slides (no repetition or paraphrase), with distinct subjects, scenes and settings (ex: doctor office, city skyline, data charts, handshake)"
     }
   ],
   "caption": "legenda do post 2-3 frases mais CTA",
